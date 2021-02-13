@@ -8,7 +8,7 @@ import Data.Natural (Natural, intToNat, natToInt)
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested (type (/\), (/\))
 import Data.Traversable (class Traversable, traverse)
-import Data.Foldable (sum, foldl)
+import Data.Foldable (foldl)
 import Data.String.Pattern (Pattern(..))
 import Data.String.CodeUnits as String
 import Partial.Unsafe (unsafeCrashWith)
@@ -25,7 +25,7 @@ stringToNat = parseInt >>> map intToNat
 
 -- | Base-10
 parseInt :: String -> Maybe Int
-parseInt = String.toCharArray >>> traverse digitValue >>> map sum
+parseInt = String.toCharArray >>> traverse digitValue >>> map (foldl (\n d -> 10 * n + d) 0)
   where digitValue digit = String.indexOf (Pattern $ String.singleton digit) "0123456789"
 
 -- | splitOnce "&" "a & b & c" == Just $ "a " /\" b & c"

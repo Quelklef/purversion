@@ -5,7 +5,8 @@ import Effect (Effect)
 import Effect.Console (log)
 import Data.String.CodeUnits as String
 import Data.String.Pattern (Pattern(..))
-import Data.Traversable (traverse, sum)
+import Data.Traversable (traverse)
+import Data.Foldable (foldl)
 import Data.Identity (Identity(..))
 import Data.Newtype (unwrap)
 import Data.Maybe (Maybe)
@@ -37,7 +38,7 @@ main = do
     } <#> unwrap  -- remove the Identity
 
   -- Save a value
-  Pv.save pv { counter: 6 }
+  Pv.save pv { counter: 127 }
 
   -- Load a value!
   got <- Pv.load pv
@@ -46,5 +47,5 @@ main = do
 
 
 parseInt :: String -> Maybe Int
-parseInt = String.toCharArray >>> traverse digitValue >>> map sum
+parseInt = String.toCharArray >>> traverse digitValue >>> map (foldl (\n d -> 10 * n + d) 0)
   where digitValue digit = String.indexOf (Pattern $ String.singleton digit) "0123456789"
