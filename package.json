@@ -1,0 +1,32 @@
+{
+  "name": "purversion",
+  "version": "0.0.1",
+  "description": "Richly-typed and versioned localStorage keys for Purescript",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Quelklef/purversion.git"
+  },
+  "keywords": [
+    "localStorage",
+    "Purescript",
+    "version"
+  ],
+  "author": "Quelklef",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Quelklef/purversion/issues"
+  },
+  "homepage": "https://github.com/Quelklef/purversion#readme",
+  "dependencies": {},
+  "devDependencies": {
+    "bower": "^1.8.12",
+    "pulp": "^15.0.0"
+  }
+}

@@ -1,0 +1,28 @@
+{
+    "name": "purescript-purversion",
+    "license": [
+        "MIT"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Quelklef/purversion"
+    },
+    "ignore": [
+        "**/.*",
+        "node_modules",
+        "bower_components",
+        "output"
+    ],
+    "dependencies": {
+        "purescript-arrays": "^v5.3.1",
+        "purescript-effect": "^v2.0.1",
+        "purescript-foldable-traversable": "^v4.1.1",
+        "purescript-identity": "^v4.1.0",
+        "purescript-naturals": "^v3.0.0",
+        "purescript-newtype": "^v3.0.0",
+        "purescript-partial": "^v2.0.1",
+        "purescript-spec": "^v4.0.1",
+        "purescript-strings": "^v4.0.2",
+        "purescript-stringutils": "^v0.0.10"
+    }
+}
