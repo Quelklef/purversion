@@ -1,4 +1,4 @@
-module Main (purverse) where
+module Database.Purversion (make, load, save, Purverse, Migrated) where
 
 import Prelude
 
@@ -66,41 +66,49 @@ unsafeRetrieve key = do
     item <- nativeGet key
     case unItem item of
       Just x -> pure x
-      Nothing -> unsafeCrashWith $ "[Purversion] Bad internal state! Is something else modifying localStorage? The key " <> show key <> " has the following value, which is invalid: " <> show item
+      Nothing -> unsafeCrashWith $ "[Purversion] Bad internal val! Is something else modifying localStorage? The key " <> show key <> " has the following value, which is invalid: " <> show item
 
-purverse
-  :: forall dm mm state
-   . Monad mm
-  => Traversable mm
-  => Monad dm
-  => String
-  -> Array (String -> mm String)
-  -> (state -> String)
-  -> (String -> dm state)
-  -> Effect (mm { save :: state -> Effect Unit
-                , load :: Effect (dm state) })
+-- | Represents a localStorage key which is managed by Purversion
+type Purverse mv de val =
+  { key :: String
+  , migrations :: Array (String -> mv String)
+  , encode :: val -> String
+  , decode :: String -> de val
+  }
 
-purverse key migrations encode decode = runMigrations # (map <<< map) (const { load, save })
-  where
+data Migrated mv de val = Migrated (Purverse mv de val)
 
-    load :: Effect (dm state)
-    load = do
-      payload <- _.payload <$> unsafeRetrieve key
-      pure $ decode payload
+make
+  :: forall mv de val
+   . Monad mv
+  => Traversable mv
+  => Purverse mv de val
+  -> Effect (mv (Migrated mv de val))
+make pv = migrate pv # (map <<< map) (const $ Migrated pv)
 
-    save :: state -> Effect Unit
-    save state = do
-      version <- _.version <$> unsafeRetrieve key
-      nativeSet key $ mkItem version (encode state)
-      pure unit
+load :: forall mv de val. Migrated mv de val -> Effect (de val)
+load (Migrated pv) = do
+  payload <- _.payload <$> unsafeRetrieve pv.key
+  pure $ pv.decode payload
 
-    runMigrations :: Effect (mm Unit)
-    runMigrations = do
-      let targetVersion = intToNat $ Array.length migrations
-      { payload: unmigrated, version: unmigratedVersion } <- unsafeRetrieve key
-      let neededMigrations = Array.drop (natToInt unmigratedVersion) migrations
-      let migrate = foldl (>=>) (pure <<< identity) neededMigrations
-      let migratedM = migrate unmigrated
-      migratedM # traverse \migrated -> do
-        nativeSet key $ mkItem targetVersion migrated
-        pure unit
+save :: forall mv de val. Migrated mv de val -> val -> Effect Unit
+save (Migrated pv) val = do
+  version <- _.version <$> unsafeRetrieve pv.key
+  nativeSet pv.key $ mkItem version (pv.encode val)
+  pure unit
+
+migrate
+  :: forall mv de val
+   . Monad mv
+  => Traversable mv
+  => Purverse mv de val
+  -> Effect (mv Unit)
+migrate pv = do
+  let targetVersion = intToNat $ Array.length pv.migrations
+  { payload: unmigrated, version: unmigratedVersion } <- unsafeRetrieve pv.key
+  let neededMigrations = Array.drop (natToInt unmigratedVersion) pv.migrations
+  let bigMigration = foldl (>=>) (pure <<< identity) neededMigrations
+  let migratedM = bigMigration unmigrated
+  migratedM # traverse \migrated -> do
+    nativeSet pv.key $ mkItem targetVersion migrated
+    pure unit

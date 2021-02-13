@@ -19,7 +19,7 @@ import Data.Identity (Identity)
 import Data.Newtype (unwrap)
 import Partial.Unsafe (unsafePartial)
 
-import Main (purverse)
+import Database.Purversion as Pv
 
 foreign import establishLocalStorageShim :: Effect Unit
 
@@ -31,33 +31,33 @@ main = do
     describe "purversion" do
 
       it "subsumes localstorage" do
-        { save: saveA, load: loadA } <- liftEffect $ unwrap <$> purverse "subsume-A" noMigrations identity Just
-        { save: saveB, load: loadB } <- liftEffect $ unwrap <$> purverse "subsume-B" noMigrations identity Just
-        liftEffect (saveA "string a" *> loadA) >>= (_ `shouldEqual` Just "string a")
-        liftEffect (saveB "string b" *> loadB) >>= (_ `shouldEqual` Just "string b")
-        liftEffect (saveA "gnirts a" *> loadA) >>= (_ `shouldEqual` Just "gnirts a")
-        liftEffect (saveB "gnirts b" *> loadB) >>= (_ `shouldEqual` Just "gnirts b")
+        pvA <- liftEffect $ unwrap <$> Pv.make { key: "subsume-A", migrations: noMigrations, encode: identity, decode: Just }
+        pvB <- liftEffect $ unwrap <$> Pv.make { key: "subsume-B", migrations: noMigrations, encode: identity, decode: Just }
+        liftEffect (Pv.save pvA "string a" *> Pv.load pvA) >>= (_ `shouldEqual` Just "string a")
+        liftEffect (Pv.save pvB "string b" *> Pv.load pvB) >>= (_ `shouldEqual` Just "string b")
+        liftEffect (Pv.save pvA "gnirts a" *> Pv.load pvA) >>= (_ `shouldEqual` Just "gnirts a")
+        liftEffect (Pv.save pvB "gnirts b" *> Pv.load pvB) >>= (_ `shouldEqual` Just "gnirts b")
 
       it "supports encoding" do
-        { save, load } <- liftEffect $ unwrap <$> purverse "encoding" noMigrations String.toLower Just
-        liftEffect (save "TeSt" *> load) >>= (_ `shouldEqual` Just "test")
+        pv <- liftEffect $ unwrap <$> Pv.make { key: "encoding", migrations: noMigrations, encode: String.toLower, decode: Just }
+        liftEffect (Pv.save pv "TeSt" *> Pv.load pv) >>= (_ `shouldEqual` Just "test")
 
       it "supports failable decoding" do
         -- our "decode" function is to put all in lowercase and crash on any 'x' characters
         let decode s = if String.includes "x" s then Nothing else Just (String.toLower s)
-        { save, load } <- liftEffect $ unwrap <$> purverse "decoding" noMigrations identity decode
-        liftEffect (save "TeSt" *> load) >>= (_ `shouldEqual` Just "test")
-        liftEffect (save "TxSt" *> load) >>= (_ `shouldEqual` Nothing)
+        pv <- liftEffect $ unwrap <$> Pv.make { key: "decoding", migrations: noMigrations, encode: identity, decode: decode }
+        liftEffect (Pv.save pv "TeSt" *> Pv.load pv) >>= (_ `shouldEqual` Just "test")
+        liftEffect (Pv.save pv "TxSt" *> Pv.load pv) >>= (_ `shouldEqual` Nothing)
 
       it "supports failable migrations" do
 
         let migrationsA = [Right <<< (_ <> "howdy"), Right <<< (_ <> " doo"), Right <<< (_ <> "?")]
-        { save: saveA, load: loadA } <- liftEffect $ unsafePartial fromRight <$> purverse "migrations" migrationsA identity Just
-        liftEffect loadA >>= (_ `shouldEqual` Just "howdy doo?")
+        pvA <- liftEffect $ unsafePartial fromRight <$> Pv.make { key: "migrations", migrations: migrationsA, encode: identity, decode: Just }
+        liftEffect (Pv.load pvA) >>= (_ `shouldEqual` Just "howdy doo?")
 
         let migrationsB = migrationsA <> [const $ Left "oh no!"]
         expectError do
-          migrationResult <- liftEffect $ purverse "migrations" migrationsB identity Just
+          migrationResult <- liftEffect $ Pv.make { key: "migrations", migrations: migrationsB, encode: identity, decode: Just }
           case migrationResult of
             Left err -> throwError $ Exception.error err
             Right _ -> pure unit
