@@ -1,4 +1,4 @@
-module Database.Purversion (make, load, save, Purverse, Migrated) where
+module Database.Purversion (make, load, save, Purverse) where
 
 import Prelude
 
@@ -69,30 +69,70 @@ unsafeRetrieve key = do
       Nothing -> unsafeCrashWith $ "[Purversion] Bad internal val! Is something else modifying localStorage? The key " <> show key <> " has the following value, which is invalid: " <> show item
 
 -- | Represents a localStorage key which is managed by Purversion
-type Purverse mv de val =
+-- |
+-- | By "managed" I mean that Purversion equips the native string localStorage value:
+-- | 1. a rich type, via `encode` and `decode`; and
+-- | 2. versioning, via `migrations`
+-- |
+-- | Each `Purverse` value must be created via `make`. This is to ensure that one cannot
+-- | `save` to or `load` from a key that has not been migrated.
+-- |
+-- | The type variables have the following meaning:
+-- |
+-- | - `mv :: Type -> Type` provides a context to migrations, allowing failures. Ex: `Either String`, `Maybe`. Also see `make`.
+-- |
+-- | - `de :: Type -> Type` provides a context to decoding, allowing failures. Ex: `Either String`, `Maybe`. Also see `load`.
+-- |
+-- | - `val :: Type` is the type of the values being stored by Purversion. Also see `save`, `load`.
+data Purverse mv de val = Purverse
   { key :: String
   , migrations :: Array (String -> mv String)
   , encode :: val -> String
   , decode :: String -> de val
   }
 
-data Migrated mv de val = Migrated (Purverse mv de val)
-
+-- | Create a Purversion-managed localStorage key.
+-- |
+-- | This will first run all migrations for the key, failing in `mv` on failure.
+-- |
+-- | If no failure is encountered, then a `Purversion` value is produced and returned,
+-- | which can be used with the rest of the API to interact with the localStorage key.
 make
   :: forall mv de val
    . Monad mv
   => Traversable mv
-  => Purverse mv de val
-  -> Effect (mv (Migrated mv de val))
-make pv = migrate pv # (map <<< map) (const $ Migrated pv)
+  => { key :: String
+     , migrations :: Array (String -> mv String)
+     , encode :: val -> String
+     , decode :: String -> de val
+     }
+  -> Effect (mv (Purverse mv de val))
+make fields =
+  let pv = Purverse fields
+  in migrate pv # (map <<< map) (const pv)
 
-load :: forall mv de val. Migrated mv de val -> Effect (de val)
-load (Migrated pv) = do
+-- | Read the value of out a `Purverse` key.
+-- |
+-- | This reads the `String` value from localStorage, and then
+-- | transforms it into a `val` with `.decode`.
+-- |
+-- | Two kinds of failures are possible:
+-- |
+-- | 1. In `de`, if the decoding fails.
+-- |
+-- | 2. In `Effect`, if the localStorage values have been edited by an outside
+-- | agent, such as non-Purversion code or the programmer
+load :: forall mv de val. Purverse mv de val -> Effect (de val)
+load (Purverse pv) = do
   payload <- _.payload <$> unsafeRetrieve pv.key
   pure $ pv.decode payload
 
-save :: forall mv de val. Migrated mv de val -> val -> Effect Unit
-save (Migrated pv) val = do
+-- | Save a value into a `Purverse` key.
+-- |
+-- | This first encodes the value down to a `String` via `.encode`, and
+-- | then saves that string into localStorage.
+save :: forall mv de val. Purverse mv de val -> val -> Effect Unit
+save (Purverse pv) val = do
   version <- _.version <$> unsafeRetrieve pv.key
   nativeSet pv.key $ mkItem version (pv.encode val)
   pure unit
@@ -103,7 +143,7 @@ migrate
   => Traversable mv
   => Purverse mv de val
   -> Effect (mv Unit)
-migrate pv = do
+migrate (Purverse pv) = do
   let targetVersion = intToNat $ Array.length pv.migrations
   { payload: unmigrated, version: unmigratedVersion } <- unsafeRetrieve pv.key
   let neededMigrations = Array.drop (natToInt unmigratedVersion) pv.migrations

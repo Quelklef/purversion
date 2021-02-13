@@ -21,6 +21,8 @@ import Partial.Unsafe (unsafePartial)
 
 import Database.Purversion as Pv
 
+import Test.Example as Example
+
 foreign import establishLocalStorageShim :: Effect Unit
 
 main :: Effect Unit
@@ -28,6 +30,11 @@ main = do
   establishLocalStorageShim
 
   launchAff_ $ runSpec [consoleReporter] do
+
+    describe "example" do
+      it "runs" do
+        liftEffect Example.main
+
     describe "purversion" do
 
       it "subsumes localstorage" do
