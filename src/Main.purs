@@ -46,7 +46,7 @@ foreign import nativeGet :: String -> Effect String
 
 foreign import exists :: String -> Effect Boolean
 
--- Convert a (version, payload) to a localstorage item
+-- Convert a (version, payload) pair to a localstorage item
 mkItem :: Natural -> String -> String
 mkItem version payload = natToString version <> ":" <> payload
 
@@ -66,11 +66,11 @@ unsafeRetrieve key = do
     item <- nativeGet key
     case unItem item of
       Just x -> pure x
-      Nothing -> unsafeCrashWith $ "[Purversion] Bad internal val! Is something else modifying localStorage? The key " <> show key <> " has the following value, which is invalid: " <> show item
+      Nothing -> unsafeCrashWith $ "[Purversion] Bad internal state! Is something else modifying localStorage? The key " <> show key <> " has the following value, which is invalid: " <> show item
 
 -- | Represents a localStorage key which is managed by Purversion
 -- |
--- | By "managed" I mean that Purversion equips the native string localStorage value:
+-- | By "managed" I mean that Purversion equips the native string localStorage value with:
 -- | 1. a rich type, via `encode` and `decode`; and
 -- | 2. versioning, via `migrations`
 -- |
@@ -93,7 +93,7 @@ data Purverse mv de val = Purverse
 
 -- | Create a Purversion-managed localStorage key.
 -- |
--- | This will first run all migrations for the key, failing in `mv` on failure.
+-- | This will first run all migrations for the key, failing in `mv` if any migration fails.
 -- |
 -- | If no failure is encountered, then a `Purversion` value is produced and returned,
 -- | which can be used with the rest of the API to interact with the localStorage key.
